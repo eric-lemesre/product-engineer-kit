@@ -9,6 +9,7 @@ import type {
 } from "./contracts.js";
 import { HttpError } from "./http/errors.js";
 import {
+  claudeInstructionFolders,
   clientsForContextEntry,
   links,
   toolsForSkill,
@@ -94,6 +95,11 @@ export function contextInventory(
     cursor: [],
     copilot: [],
   };
+  const claudeFolders = claudeInstructionFolders(
+    entries.flatMap((entry) =>
+      entry.scope === "project" ? entry.aliases : [],
+    ),
+  );
   const resolveReference = referenceResolver(entries, env);
   const nodes = new Map(data.nodes.map((node) => [node.id, node]));
   const rules = new Map(data.rules.map((rule) => [rule.id, rule]));
@@ -146,6 +152,7 @@ export function contextInventory(
             entry.scope,
             env.root,
             env.codexHome,
+            claudeFolders,
           ).includes(client),
         );
         const effective = aliases.filter(

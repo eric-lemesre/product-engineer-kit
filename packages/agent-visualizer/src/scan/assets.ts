@@ -3,6 +3,7 @@ import path from "node:path";
 import { parse as yaml } from "yaml";
 import type { Client, ContextNode, Rule, Skill } from "../contracts.js";
 import {
+  claudeInstructionFolders,
   clientsForContextEntry,
   frontmatter,
   ruleClient,
@@ -25,6 +26,11 @@ export async function discoverAssets(
   env: ScanEnvironment,
 ) {
   const { root, codexHome, display, warnings } = env;
+  const claudeFolders = claudeInstructionFolders(
+    entries.flatMap((entry) =>
+      entry.scope === "project" ? entry.aliases : [],
+    ),
+  );
   const context = new Map<string, ContextNode>();
   const rules = new Map<string, Rule>();
   const skills = new Map<string, Skill>();
@@ -53,7 +59,13 @@ export async function discoverAssets(
       clients: [
         ...new Set(
           aliases.flatMap((alias) =>
-            clientsForContextEntry(alias, entry.scope, root, codexHome),
+            clientsForContextEntry(
+              alias,
+              entry.scope,
+              root,
+              codexHome,
+              claudeFolders,
+            ),
           ),
         ),
       ],

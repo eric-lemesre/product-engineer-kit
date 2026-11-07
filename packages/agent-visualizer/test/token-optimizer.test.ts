@@ -480,3 +480,56 @@ test("keeps Codex catalog visibility local to each copy's policy and discovery s
     await fs.rm(root, { recursive: true, force: true });
   }
 });
+
+test("counts AGENTS.md as Claude Code instructions when no CLAUDE.md shadows it", async () => {
+  await fs.mkdir(".local/test", { recursive: true });
+  const root = await fs.mkdtemp(path.resolve(".local/test/agents-md-"));
+  try {
+    for (const [name, text] of Object.entries({
+      "AGENTS.md": "Shared instructions",
+      "app/AGENTS.md": "App instructions",
+      "lib/AGENTS.md": "Lib instructions",
+      "lib/CLAUDE.md": "Lib Claude instructions",
+    })) {
+      await fs.mkdir(path.dirname(path.join(root, name)), { recursive: true });
+      await fs.writeFile(path.join(root, name), text);
+    }
+    const claude = estimateTokens(
+      await scanProject(root, { includeUser: false }),
+      "claude",
+      "claude-sonnet-5-5",
+    );
+    expect(
+      claude.entries
+        .map((entry) => [entry.path, entry.portion])
+        .sort(([a], [b]) => String(a).localeCompare(String(b))),
+    ).toEqual([
+      ["AGENTS.md", "startup"],
+      ["app/AGENTS.md", "on-demand"],
+      ["lib/CLAUDE.md", "on-demand"],
+    ]);
+    await fs.writeFile(path.join(root, "CLAUDE.md"), "@AGENTS.md");
+    const shadowed = estimateTokens(
+      await scanProject(root, { includeUser: false }),
+      "claude",
+      "claude-sonnet-5-5",
+    );
+    expect(
+      shadowed.entries
+        .filter((entry) => entry.kind === "instruction")
+        .map((entry) => [entry.path, entry.portion]),
+    ).toEqual(
+      expect.arrayContaining([
+        ["CLAUDE.md", "startup"],
+        ["lib/CLAUDE.md", "on-demand"],
+      ]),
+    );
+    expect(
+      shadowed.entries.some(
+        (entry) => entry.path === "AGENTS.md" && entry.kind === "instruction",
+      ),
+    ).toBe(false);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});

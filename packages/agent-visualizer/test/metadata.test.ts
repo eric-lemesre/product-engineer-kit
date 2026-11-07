@@ -1,6 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  claudeInstructionFolders,
   clientsForContextEntry,
   frontmatter,
   links,
@@ -72,6 +73,32 @@ describe("metadata normalization", () => {
       "copilot",
     ]);
   });
+});
+
+it("lets Claude Code read AGENTS.md only where no Claude instruction file shadows it", () => {
+  const root = path.resolve("fixture");
+  const codexHome = path.resolve("home/.codex");
+  const clients = (alias: string, claude: string[]) =>
+    clientsForContextEntry(
+      path.join(root, alias),
+      "project",
+      root,
+      codexHome,
+      claudeInstructionFolders(claude.map((file) => path.join(root, file))),
+    );
+  expect(clients("AGENTS.md", [])).toEqual([
+    "cursor",
+    "codex",
+    "copilot",
+    "claude",
+  ]);
+  expect(clients(".claude/AGENTS.md", [])).toContain("claude");
+  for (const shadow of ["CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md"])
+    expect(clients("AGENTS.md", [shadow])).not.toContain("claude");
+  expect(clients("app/AGENTS.md", ["CLAUDE.md"])).not.toContain("claude");
+  expect(clients("app/AGENTS.md", ["app/CLAUDE.md"])).not.toContain("claude");
+  expect(clients("app/AGENTS.md", ["lib/CLAUDE.md"])).toContain("claude");
+  expect(clients("AGENTS.md", ["app/CLAUDE.md"])).toContain("claude");
 });
 
 it("keeps Codex internal system skills exclusive without disabling shared legacy skills", () => {

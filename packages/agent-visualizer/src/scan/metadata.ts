@@ -28,11 +28,42 @@ export const toolsForSkill = (p: string): Client[] => {
     result.push("copilot");
   return result;
 };
+/** Folders whose `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` make Claude Code skip `AGENTS.md`. */
+export const claudeInstructionFolders = (
+  aliases: Iterable<string>,
+): Set<string> => {
+  const folders = new Set<string>();
+  for (const alias of aliases) {
+    const name = path.basename(alias).toLowerCase();
+    if (name !== "claude.md" && name !== "claude.local.md") continue;
+    const folder = path.dirname(alias);
+    folders.add(
+      path.basename(folder) === ".claude" ? path.dirname(folder) : folder,
+    );
+  }
+  return folders;
+};
+// Claude Code reads AGENTS.md only when no Claude instruction file exists in
+// its folder or above it, up to the scan root (folders above it are not scanned).
+const claudeReadsAgents = (
+  alias: string,
+  root: string,
+  claudeFolders: ReadonlySet<string>,
+): boolean => {
+  let folder = path.dirname(alias);
+  if (path.basename(folder) === ".claude") folder = path.dirname(folder);
+  for (;;) {
+    if (claudeFolders.has(folder)) return false;
+    if (folder === root || !inside(root, folder)) return true;
+    folder = path.dirname(folder);
+  }
+};
 export const clientsForContextEntry = (
   alias: string,
   scope: Scope,
   root: string,
   codexHome: string,
+  claudeFolders?: ReadonlySet<string>,
 ): Client[] => {
   const name = path.basename(alias).toLowerCase();
   if (name === "copilot-instructions.md")
@@ -45,7 +76,9 @@ export const clientsForContextEntry = (
   if (name === "agents.md") {
     if (scope === "user")
       return inside(codexHome, alias) ? ["codex"] : ["cursor"];
-    return ["cursor", "codex", "copilot"];
+    return claudeFolders && claudeReadsAgents(alias, root, claudeFolders)
+      ? ["cursor", "codex", "copilot", "claude"]
+      : ["cursor", "codex", "copilot"];
   }
   if (name === "claude.local.md") return ["claude"];
   if (name === "claude.md")
